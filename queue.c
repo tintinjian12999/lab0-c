@@ -1,5 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "queue.h"
@@ -14,21 +12,56 @@
 /* Create an empty queue */
 struct list_head *q_new()
 {
-    return NULL;
+    struct list_head *head = malloc(sizeof(*head));
+    if (!head)
+        return NULL;
+    INIT_LIST_HEAD(head);
+    return head;
 }
 
 /* Free all storage used by queue */
-void q_free(struct list_head *head) {}
+void q_free(struct list_head *head)
+{
+    if (!head)
+        return;
+    struct list_head *node, *safe;
+    list_for_each_safe (node, safe, head)
+        free(node);
+}
 
 /* Insert an element at head of queue */
 bool q_insert_head(struct list_head *head, char *s)
 {
+    if (!head)
+        return false;
+    element_t *new_element = malloc(sizeof(*new_element));
+    if (!new_element)
+        return false;
+    new_element->value = malloc(sizeof(char) * (strlen(s) + 1));
+    if (!new_element->value) {
+        free(new_element);
+        return false;
+    }
+    strncpy(new_element->value, s, strlen(s) + 1);
+    list_add(&new_element->list, head);
     return true;
 }
 
 /* Insert an element at tail of queue */
 bool q_insert_tail(struct list_head *head, char *s)
 {
+    if (!head)
+        return false;
+    element_t *new_element = malloc(sizeof(*new_element));
+    if (!new_element)
+        return false;
+    new_element->value = malloc(sizeof(char) * (strlen(s) + 1));
+    if (!new_element->value) {
+        free(new_element);
+        return false;
+    }
+    strncpy(new_element->value, s, strlen(s) + 1);
+    list_add_tail(&new_element->list, head);
     return true;
 }
 
