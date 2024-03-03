@@ -108,7 +108,7 @@ bool q_delete_mid(struct list_head *head)
     // https://leetcode.com/problems/delete-the-middle-node-of-a-linked-list/
     if (!head || list_empty(head))
         return false;
-    struct list_head *slow = head->next, *fast = head->next;
+    struct list_head *slow = head->next, *fast = head->next->next;
     while (fast != head && fast->next != head) {
         fast = fast->next->next;
         slow = slow->next;
@@ -187,11 +187,44 @@ void q_reverseK(struct list_head *head, int k)
         }
     }
 }
-
-
 /* Sort elements of queue in ascending/descending order */
-void q_sort(struct list_head *head, bool descend) {}
+void mergeTwoLists(struct list_head *head,
+                   struct list_head *left,
+                   struct list_head *right,
+                   bool descend)
+{
+    while (left->next != left && right->next != right) {
+        element_t *left_node = list_entry(left->next, element_t, list);
+        element_t *right_node = list_entry(right->next, element_t, list);
+        if ((strcmp(left_node->value, right_node->value) >= 0 && descend) ||
+            (strcmp(left_node->value, right_node->value) <= 0 && !descend))
+            list_move(left->next, head->prev);
+        else
+            list_move(right->next, head->prev);
+    }
+    if (left->next == left)
+        list_splice_tail(right, head);
+    else
+        list_splice_tail(left, head);
+}
 
+void q_sort(struct list_head *head, bool descend)
+{
+    if (!head || list_empty(head) || list_is_singular(head))
+        return;
+    struct list_head *slow = head->next, *fast = head->next->next;
+    while (fast != head && fast->next != head) {
+        fast = fast->next->next;
+        slow = slow->next;
+    }
+    LIST_HEAD(left);
+    LIST_HEAD(right);
+    list_cut_position(&right, head, slow);
+    list_splice_init(head, &left);
+    q_sort(&left, descend);
+    q_sort(&right, descend);
+    mergeTwoLists(head, &left, &right, descend);
+}
 /* Remove every node which has a node with a strictly less value anywhere to
  * the right side of it */
 int q_ascend(struct list_head *head)
