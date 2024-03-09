@@ -122,26 +122,22 @@ bool q_delete_mid(struct list_head *head)
 bool q_delete_dup(struct list_head *head)
 {
     // https://leetcode.com/problems/remove-duplicates-from-sorted-list-ii/
-    if (head == NULL || list_empty(head) || list_is_singular(head))
+    if (!head || list_empty(head) || list_is_singular(head))
         return false;
-    struct list_head *node = head->next;
+    element_t *node, *safe;
     bool dup = false;
-    while (node->next != NULL) {
-        if (strcmp(list_entry(node, element_t, list)->value,
-                   list_entry(node->next, element_t, list)->value) == 0) {
+    list_for_each_entry_safe (node, safe, head, list) {
+        if (node->list.next != head && strcmp(node->value, safe->value) == 0) {
             dup = true;
-            list_del(node);
-            q_release_element(list_entry(node, element_t, list));
+            list_del(&node->list);
+            q_release_element(node);
         } else if (dup) {
             dup = false;
-            list_del(node);
-            q_release_element(list_entry(node, element_t, list));
+            list_del(&node->list);
+            q_release_element(node);
         }
     }
-    if (dup) {
-        list_del(node);
-        q_release_element(list_entry(node, element_t, list));
-    }
+
     return true;
 }
 
@@ -175,18 +171,20 @@ void q_reverseK(struct list_head *head, int k)
     if (!head || list_empty(head) || list_is_singular(head))
         return;
     int count = 0;
-    struct list_head *node, *safe, *head_to = q_new(), *head_from = head;
+    struct list_head *node, *safe, *head_from = head;
+    LIST_HEAD(head_to);
     list_for_each_safe (node, safe, head) {
         count++;
         if (count == k) {
-            list_cut_position(head_to, head_from, node);
-            q_reverse(head_to);
-            list_splice_init(head_to, head_from);
+            list_cut_position(&head_to, head_from, node);
+            q_reverse(&head_to);
+            list_splice_init(&head_to, head_from);
             count = 0;
             head_from = safe->prev;
         }
     }
 }
+
 /* Sort elements of queue in ascending/descending order */
 void mergeTwoLists(struct list_head *head,
                    struct list_head *left,
