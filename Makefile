@@ -40,8 +40,9 @@ $(GIT_HOOKS):
 OBJS := qtest.o report.o console.o harness.o queue.o \
         random.o dudect/constant.o dudect/fixture.o dudect/ttest.o \
         shannon_entropy.o \
-        linenoise.o web.o
-
+        linenoise.o web.o \
+        list_sort.o
+        
 deps := $(OBJS:%.o=.%.o.d)
 
 qtest: $(OBJS)
@@ -55,8 +56,11 @@ qtest: $(OBJS)
 
 check: qtest    
 	./$< -v 3 -f traces/trace-eg.cmd
-measure_time: 
+measure_q_sort: 
 	perf stat --repeat 20 -e instructions,cycles,cache-misses,cache-references ./qtest -f traces/trace-measure.cmd
+	
+measure_list_sort: 
+	perf stat --repeat 20 -e instructions,cycles,cache-misses,cache-references ./qtest -f traces/trace-measure-list_sort.cmd
 
 test: qtest scripts/driver.py
 	scripts/driver.py -c

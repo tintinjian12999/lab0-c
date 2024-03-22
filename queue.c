@@ -1,6 +1,5 @@
-#include <string.h>
-
 #include "queue.h"
+#include <string.h>
 
 /* Notice: sometimes, Cppcheck would find the potential NULL pointer bugs,
  * but some of them cannot occur. You can suppress them by adding the

@@ -1,5 +1,5 @@
 
 new
 ih RAND 2
-sort
+list_sort
 
