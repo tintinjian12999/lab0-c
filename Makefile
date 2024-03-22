@@ -3,7 +3,7 @@ CFLAGS = -O1 -g -Wall -Werror -Idudect -I.
 
 # Emit a warning should any variable-length array be found within the code.
 CFLAGS += -Wvla
-
+ 
 GIT_HOOKS := .git/hooks/applied
 DUT_DIR := dudect
 all: $(GIT_HOOKS) qtest
@@ -53,8 +53,10 @@ qtest: $(OBJS)
 	$(VECHO) "  CC\t$@\n"
 	$(Q)$(CC) -o $@ $(CFLAGS) -c -MMD -MF .$@.d $<
 
-check: qtest
+check: qtest    
 	./$< -v 3 -f traces/trace-eg.cmd
+measure_time: 
+	perf stat --repeat 20 -e instructions,cycles,cache-misses,cache-references ./qtest -f traces/trace-measure.cmd
 
 test: qtest scripts/driver.py
 	scripts/driver.py -c
