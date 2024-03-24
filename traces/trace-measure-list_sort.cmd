@@ -1,5 +1,5 @@
 
 new
-ih RAND 2
+ih RAND 1000000
 list_sort
 
