@@ -19,6 +19,7 @@
 #include <time.h>
 #endif
 #include "agents/mcts.h"
+#include "agents/negamax.h"
 #include "dudect/fixture.h"
 #include "game.h"
 #include "list.h"
@@ -76,6 +77,7 @@ static int fail_count = 0;
 static int string_length = MAXSTRING;
 
 static int descend = 0;
+static int AI = 0;
 
 #define MIN_RANDSTR_LEN 5
 #define MAX_RANDSTR_LEN 10
@@ -766,9 +768,11 @@ static bool do_ttt(int argc, char *argv[])
     srand(time(NULL));
     char table[N_GRIDS];
     memset(table, ' ', N_GRIDS);
+    bool ok = true;
+    if (AI)
+        negamax_init();
     char turn = 'X';
     char ai = 'O';
-    bool ok = true;
     while (1) {
         char win = check_win(table);
         if (win == 'D') {
@@ -790,16 +794,24 @@ static bool do_ttt(int argc, char *argv[])
 
         } else {
             draw_board(table);
-            int move;
-            while (1) {
-                move = get_input(turn);
-                if (table[move] == ' ') {
-                    break;
+            if (!AI) {
+                int move;
+                while (1) {
+                    move = get_input(turn);
+                    if (table[move] == ' ') {
+                        table[move] = turn;
+                        record_move(move);
+                        break;
+                    }
+                    printf("Invalid operation: the position has been marked\n");
                 }
-                printf("Invalid operation: the position has been marked\n");
+            } else {
+                int move = negamax_predict(table, ai).move;
+                if (move != -1) {
+                    table[move] = turn;
+                    record_move(move);
+                }
             }
-            table[move] = turn;
-            record_move(move);
         }
         turn = turn == 'X' ? 'O' : 'X';
     }
@@ -1242,6 +1254,7 @@ static void console_init()
               "Number of times allow queue operations to return false", NULL);
     add_param("descend", &descend,
               "Sort and merge queue in ascending/descending order", NULL);
+    add_param("AI", &AI, "Let the computer play ttt with them self.", NULL);
 }
 
 /* Signal handlers */

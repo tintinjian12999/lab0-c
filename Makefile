@@ -8,7 +8,6 @@ GIT_HOOKS := .git/hooks/applied
 DUT_DIR := dudect
 AGENT_DIT := agents
 all: $(GIT_HOOKS) qtest
-
 tid := 0
 
 # Control test case option of valgrind
@@ -43,7 +42,8 @@ OBJS := qtest.o report.o console.o harness.o queue.o \
         shannon_entropy.o \
         linenoise.o web.o \
         list_sort.o \
-        game.o mt19937-64.o zobrist.o agents/mcts.o
+        game.o mt19937-64.o zobrist.o \
+        agents/mcts.o agents/negamax.o
 
 deps := $(OBJS:%.o=.%.o.d)
 
