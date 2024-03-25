@@ -773,14 +773,13 @@ static bool do_ttt(int argc, char *argv[])
         negamax_init();
     char turn = 'X';
     char ai = 'O';
+    bool first_round = true;
     while (1) {
         char win = check_win(table);
         if (win == 'D') {
-            draw_board(table);
             printf("It is a draw!\n");
             break;
         } else if (win != ' ') {
-            draw_board(table);
             printf("%c won!\n", win);
             break;
         }
@@ -790,32 +789,49 @@ static bool do_ttt(int argc, char *argv[])
             if (move != -1) {
                 table[move] = ai;
                 record_move(move);
+                print_moves();
+                draw_board(table);
             }
 
         } else {
-            draw_board(table);
             if (!AI) {
                 int move;
                 while (1) {
                     move = get_input(turn);
+                    printf("%d \n", BOARD_SIZE);
                     if (table[move] == ' ') {
                         table[move] = turn;
                         record_move(move);
+                        print_moves();
+                        draw_board(table);
+
                         break;
                     }
                     printf("Invalid operation: the position has been marked\n");
                 }
             } else {
-                int move = negamax_predict(table, ai).move;
-                if (move != -1) {
+                if (first_round) {
+                    int move = rand() % N_GRIDS;
+                    first_round = false;
                     table[move] = turn;
                     record_move(move);
+                    print_moves();
+                    draw_board(table);
+
+                } else {
+                    int move = negamax_predict(table, ai).move;
+                    if (move != -1) {
+                        table[move] = turn;
+                        record_move(move);
+                        print_moves();
+                        draw_board(table);
+                    }
                 }
             }
         }
         turn = turn == 'X' ? 'O' : 'X';
     }
-    print_moves();
+
 
     return ok;
 }
