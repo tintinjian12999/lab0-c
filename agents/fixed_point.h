@@ -1,5 +1,6 @@
 typedef long fixed_point_t;
 #define FRACTION_BITS 16
+#define SHIFT 10
 #define INV_LOG2_E 0x58b90bfc
 #define int2fix(a) ((fixed_point_t)((a) << FRACTION_BITS))
 #define fix2int(a) ((int) ((a >> FRACTION_BITS)))

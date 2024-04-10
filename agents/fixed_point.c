@@ -20,9 +20,9 @@ fixed_point_t fixed_mul(fixed_point_t a, fixed_point_t b)
 
 fixed_point_t fixed_div(fixed_point_t a, fixed_point_t b)
 {
-    fixed_point_t result = (a << FRACTION_BITS) / b;
+    fixed_point_t result = (a << SHIFT) / b;
     result = int2fix(result);
-    result >>= FRACTION_BITS;
+    result >>= SHIFT;
     return result;
 }
 
@@ -59,24 +59,4 @@ fixed_point_t fixed_log(fixed_point_t a)
         b >>= 1;
     }
     return (y * INV_LOG2_E) >> 31;
-}
-
-int main()
-{
-    FILE *file;
-    file = fopen("compare.txt", "w");
-    if (file == NULL) {
-        printf("無法打開檔案。\n");
-        return 1;
-    }
-    for (int i = 1; i < 201; i++) {
-        fixed_point_t result = 0;
-        result = fixed_log(int2fix(i));
-        float log_e = log(i);
-        int frac = frac2int(extract_frac(result));
-        float ans = (float) fix2int(result) + (float) frac / 1000;
-        fprintf(file, "%d %f %f %f \n", i, ans, log_e,
-                100 * fabs(ans - log_e) / log_e);
-    }
-    fclose(file);
 }
