@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <getopt.h>
+#include <setjmp.h>
 #include <signal.h>
 #include <spawn.h>
 #include <stdio.h>
@@ -13,6 +14,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
 #if defined(__APPLE__)
 #include <mach/mach_time.h>
 #else /* Assume POSIX environments */
@@ -88,13 +90,43 @@ typedef enum {
     POS_TAIL,
     POS_HEAD,
 } position_t;
+
+/*coroutine*/
+static LIST_HEAD(tasklist);
+static void (**tasks)(void *);
+static struct arg *args;
+static int ntasks;
+static jmp_buf sched;
+static struct task *cur_task;
+static char table[N_GRIDS];
+struct task {
+    jmp_buf env;
+    struct list_head list;
+    char task_name[10];
+    char turn;
+    char *table;
+};
+
+struct arg {
+    char turn;
+    char *table;
+    char *task_name;
+};
+
 /* Forward declarations */
 static int move_record[N_GRIDS];
 static int move_count = 0;
+
+static void clean_moves()
+{
+    move_count = 0;
+}
+
 static void record_move(int move)
 {
     move_record[move_count++] = move;
 }
+
 
 static void print_moves()
 {
@@ -166,6 +198,124 @@ static int get_input(char player)
     }
     free(line);
     return GET_INDEX(y, x);
+}
+
+
+static void task_add(struct task *task)
+{
+    list_add_tail(&task->list, &tasklist);
+}
+
+static void task_switch()
+{
+    if (!list_empty(&tasklist)) {
+        struct task *t = list_first_entry(&tasklist, struct task, list);
+        list_del(&t->list);
+        cur_task = t;
+        longjmp(t->env, 1);
+    }
+}
+
+void schedule(void)
+{
+    int i = 0;
+    setjmp(sched);
+    while (ntasks-- > 0) {
+        printf("i is: %d \n", i);
+        struct arg arg = args[i];
+        tasks[i++](&arg);
+        printf("Never reached\n");
+    }
+
+    task_switch();
+}
+
+void task_AI1(void *arg)
+{
+    struct task *task = malloc(sizeof(struct task));
+    strncpy(task->task_name, ((struct arg *) arg)->task_name, 10);
+    task->table = ((struct arg *) arg)->table;
+    task->turn = ((struct arg *) arg)->turn;
+
+    INIT_LIST_HEAD(&task->list);
+
+    printf("%s: %c\n", task->task_name, task->turn);
+
+    if (setjmp(task->env) == 0) {
+        task_add(task);
+        longjmp(sched, 1);
+    }
+
+    task = cur_task;
+
+    while (1) {
+        if (setjmp(task->env) == 0) {
+            char win = check_win(table);
+            if (win == 'D') {
+                printf("It is a draw!\n");
+                break;
+            } else if (win != ' ') {
+                printf("%c won!\n", win);
+                break;
+            }
+            int move = mcts(task->table, task->turn);
+            if (move != -1) {
+                table[move] = task->turn;
+                record_move(move);
+                print_moves();
+                draw_board(table);
+            }
+            task_add(task);
+            task_switch();
+        }
+        task = cur_task;
+    }
+    printf("%s: complete\n", task->task_name);
+    free(task);
+}
+
+void task_AI2(void *arg)
+{
+    struct task *task = malloc(sizeof(struct task));
+    strncpy(task->task_name, ((struct arg *) arg)->task_name, 10);
+    task->table = ((struct arg *) arg)->table;
+    task->turn = ((struct arg *) arg)->turn;
+    INIT_LIST_HEAD(&task->list);
+    negamax_init();
+
+    printf("%s: %c\n", task->task_name, task->turn);
+
+    if (setjmp(task->env) == 0) {
+        task_add(task);
+        longjmp(sched, 1);
+    }
+
+    task = cur_task;
+
+    while (1) {
+        if (setjmp(task->env) == 0) {
+            char win = check_win(table);
+            if (win == 'D') {
+                printf("It is a draw!\n");
+                break;
+            } else if (win != ' ') {
+                printf("%c won!\n", win);
+                break;
+            }
+            int move = negamax_predict(task->table, task->turn).move;
+            if (move != -1) {
+                table[move] = task->turn;
+                record_move(move);
+                print_moves();
+                draw_board(table);
+            }
+            task_add(task);
+            task_switch();
+        }
+        task = cur_task;
+    }
+    printf("%s: complete\n", task->task_name);
+    free(task);
 }
 
 static bool q_show(int vlevel);
@@ -776,10 +926,26 @@ bool do_list_sort(int argc, char *argv[])
     return ok && !error_check();
 }
 
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+static bool do_tttcoro(int argc, char *argv[])
+{
+    memset(table, ' ', N_GRIDS);
+    void (*registered_task[])(void *) = {task_AI1, task_AI2};
+    struct arg arg1 = {.table = table, .turn = 'O', .task_name = "mcts"};
+    struct arg arg2 = {.table = table, .turn = 'X', .task_name = "negamax"};
+    struct arg registered_arg[] = {arg1, arg2};
+    tasks = registered_task;
+    args = registered_arg;
+    ntasks = ARRAY_SIZE(registered_task);
+    INIT_LIST_HEAD(&tasklist);
+    schedule();
+    clean_moves();
+    return true;
+}
+
 static bool do_ttt(int argc, char *argv[])
 {
     srand(time(NULL));
-    char table[N_GRIDS];
     memset(table, ' ', N_GRIDS);
     bool ok = true;
     if (AI)
@@ -845,7 +1011,7 @@ static bool do_ttt(int argc, char *argv[])
         turn = turn == 'X' ? 'O' : 'X';
     }
 
-
+    clean_moves();
     return ok;
 }
 
@@ -1264,7 +1430,8 @@ static void console_init()
     ADD_COMMAND(dedup, "Delete all nodes that have duplicate string", "");
     ADD_COMMAND(merge, "Merge all the queues into one sorted queue", "");
     ADD_COMMAND(swap, "Swap every two adjacent nodes in queue", "");
-    ADD_COMMAND(ttt, "Plat tic-tac-toe game", "");
+    ADD_COMMAND(ttt, "Play tic-tac-toe game", "");
+    ADD_COMMAND(tttcoro, "Play coroutine version tic-tac-toe game", "");
     ADD_COMMAND(ascend,
                 "Remove every node which has a node with a strictly less "
                 "value anywhere to the right side of it",
