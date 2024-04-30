@@ -221,7 +221,6 @@ void schedule(void)
     int i = 0;
     setjmp(sched);
     while (ntasks-- > 0) {
-        printf("i is: %d \n", i);
         struct arg arg = args[i];
         tasks[i++](&arg);
         printf("Never reached\n");
@@ -262,8 +261,6 @@ void task_AI1(void *arg)
             if (move != -1) {
                 table[move] = task->turn;
                 record_move(move);
-                print_moves();
-                draw_board(table);
             }
             task_add(task);
             task_switch();
@@ -306,9 +303,37 @@ void task_AI2(void *arg)
             if (move != -1) {
                 table[move] = task->turn;
                 record_move(move);
-                print_moves();
-                draw_board(table);
             }
+            task_add(task);
+            task_switch();
+        }
+        task = cur_task;
+    }
+    printf("%s: complete\n", task->task_name);
+    free(task);
+}
+
+void task_draw_board(void *arg)
+{
+    struct task *task = malloc(sizeof(struct task));
+    strncpy(task->task_name, ((struct arg *) arg)->task_name, 10);
+    task->table = ((struct arg *) arg)->table;
+    task->turn = ((struct arg *) arg)->turn;
+
+    INIT_LIST_HEAD(&task->list);
+
+    printf("%s: %c\n", task->task_name, task->turn);
+
+    if (setjmp(task->env) == 0) {
+        task_add(task);
+        longjmp(sched, 1);
+    }
+
+    task = cur_task;
+    while (1) {
+        if (setjmp(task->env) == 0) {
+            print_moves();
+            draw_board(table);
             task_add(task);
             task_switch();
         }
@@ -930,10 +955,11 @@ bool do_list_sort(int argc, char *argv[])
 static bool do_tttcoro(int argc, char *argv[])
 {
     memset(table, ' ', N_GRIDS);
-    void (*registered_task[])(void *) = {task_AI1, task_AI2};
+    void (*registered_task[])(void *) = {task_AI1, task_AI2, task_draw_board};
     struct arg arg1 = {.table = table, .turn = 'O', .task_name = "mcts"};
     struct arg arg2 = {.table = table, .turn = 'X', .task_name = "negamax"};
-    struct arg registered_arg[] = {arg1, arg2};
+    struct arg arg3 = {.table = table, .turn = 'd', .task_name = "draw table"};
+    struct arg registered_arg[] = {arg1, arg2, arg3};
     tasks = registered_task;
     args = registered_arg;
     ntasks = ARRAY_SIZE(registered_task);
