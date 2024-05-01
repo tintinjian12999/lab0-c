@@ -20,6 +20,7 @@
 #else /* Assume POSIX environments */
 #include <time.h>
 #endif
+#include <termios.h>
 #include "agents/mcts.h"
 #include "agents/negamax.h"
 #include "dudect/fixture.h"
@@ -113,6 +114,8 @@ struct arg {
     char *task_name;
 };
 
+struct termios orig_termios;
+
 /* Forward declarations */
 static int move_record[N_GRIDS];
 static int move_count = 0;
@@ -200,6 +203,32 @@ static int get_input(char player)
     return GET_INDEX(y, x);
 }
 
+#define CTRL_KEY(k) ((k) &0x1f)
+void disableRawMode()
+{
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+}
+
+void enableRawMode()
+{
+    tcgetattr(STDIN_FILENO, &orig_termios);
+    atexit(disableRawMode);
+
+    struct termios raw = orig_termios;
+    raw.c_iflag &= ~(IXON);
+    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
+char c_read;
+char editorReadKey()
+{
+    char c;
+    if (read(STDIN_FILENO, &c, 1) == 1)
+        return c;
+    return ' ';
+}
 
 static void task_add(struct task *task)
 {
@@ -208,6 +237,10 @@ static void task_add(struct task *task)
 
 static void task_switch()
 {
+    if (c_read == CTRL_KEY('q')) {
+        exit(0);
+    }
+
     if (!list_empty(&tasklist)) {
         struct task *t = list_first_entry(&tasklist, struct task, list);
         list_del(&t->list);
@@ -225,7 +258,6 @@ void schedule(void)
         tasks[i++](&arg);
         printf("Never reached\n");
     }
-
     task_switch();
 }
 
@@ -248,7 +280,11 @@ void task_AI1(void *arg)
     task = cur_task;
 
     while (1) {
+
         if (setjmp(task->env) == 0) {
+            c_read = editorReadKey();
+            if (c_read == CTRL_KEY('c'))
+                task_switch();
             char win = check_win(table);
             if (win == 'D') {
                 printf("It is a draw!\n");
@@ -263,6 +299,7 @@ void task_AI1(void *arg)
                 record_move(move);
             }
             task_add(task);
+            usleep(500000);
             task_switch();
         }
         task = cur_task;
@@ -290,7 +327,11 @@ void task_AI2(void *arg)
     task = cur_task;
 
     while (1) {
+
         if (setjmp(task->env) == 0) {
+            c_read = editorReadKey();
+            if (c_read == CTRL_KEY('c'))
+                task_switch();
             char win = check_win(table);
             if (win == 'D') {
                 printf("It is a draw!\n");
@@ -305,6 +346,7 @@ void task_AI2(void *arg)
                 record_move(move);
             }
             task_add(task);
+            usleep(500000);
             task_switch();
         }
         task = cur_task;
@@ -315,6 +357,7 @@ void task_AI2(void *arg)
 
 void task_draw_board(void *arg)
 {
+    // disableRawMode();
     struct task *task = malloc(sizeof(struct task));
     strncpy(task->task_name, ((struct arg *) arg)->task_name, 10);
     task->table = ((struct arg *) arg)->table;
@@ -341,6 +384,7 @@ void task_draw_board(void *arg)
     }
     printf("%s: complete\n", task->task_name);
     free(task);
+    // enableRawMode();
 }
 
 static bool q_show(int vlevel);
@@ -954,18 +998,22 @@ bool do_list_sort(int argc, char *argv[])
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 static bool do_tttcoro(int argc, char *argv[])
 {
+    enableRawMode();
     memset(table, ' ', N_GRIDS);
-    void (*registered_task[])(void *) = {task_AI1, task_AI2, task_draw_board};
+    void (*registered_task[])(void *) = {task_AI1, task_draw_board, task_AI2,
+                                         task_draw_board};
     struct arg arg1 = {.table = table, .turn = 'O', .task_name = "mcts"};
     struct arg arg2 = {.table = table, .turn = 'X', .task_name = "negamax"};
-    struct arg arg3 = {.table = table, .turn = 'd', .task_name = "draw table"};
-    struct arg registered_arg[] = {arg1, arg2, arg3};
+    struct arg arg3 = {
+        .table = table, .turn = 'd', .task_name = "draw table O"};
+    struct arg registered_arg[] = {arg1, arg3, arg2, arg3};
     tasks = registered_task;
     args = registered_arg;
     ntasks = ARRAY_SIZE(registered_task);
     INIT_LIST_HEAD(&tasklist);
     schedule();
     clean_moves();
+    disableRawMode();
     return true;
 }
 
